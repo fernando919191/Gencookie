@@ -90,23 +90,13 @@ def cookies_to_dict(cookie_jar):
         cookies_dict[cookie.name] = cookie.value
     return cookies_dict
 
-def format_cookies_text(cookies_dict):
-    """Formatea las cookies en texto legible"""
-    text = "🍪 **COOKIES DE AMAZON US** 🍪\n\n"
-    text += "```json\n"
-    text += json.dumps(cookies_dict, indent=2, ensure_ascii=False)
-    text += "\n```\n\n"
+def format_cookies_amz(cookies_dict):
+    """Formatea las cookies en formato .amz (solo las cookies)"""
+    cookies_list = []
+    for key, value in cookies_dict.items():
+        cookies_list.append(f"{key}={value}")
     
-    text += "📋 **PARA USAR EN CÓDIGO:**\n"
-    text += "```python\n"
-    text += "cookies = {\n"
-    for key, value in list(cookies_dict.items())[:3]:  # Mostrar solo las primeras 3
-        text += f'    "{key}": "{value}",\n'
-    if len(cookies_dict) > 3:
-        text += f'    # ... y {len(cookies_dict) - 3} cookies más\n'
-    text += "}\n```"
-    
-    return text
+    return "; ".join(cookies_list)
 
 def generar_cookie_amazon(locale="com", country_code="US"):
     """Función principal para generar cookies de Amazon"""
@@ -229,9 +219,7 @@ async def generar_cookie_handler(update: Update, context: ContextTypes.DEFAULT_T
     try:
         # Enviar mensaje de "generando..."
         mensaje = await update.message.reply_text(
-            "🔄 *Generando cookies de Amazon US...*\n\n"
-            "⏳ *Esto puede tomar unos segundos...*\n"
-            "✨ *Preparando cookies frescas para ti*",
+            "🔄 *Generando cookies de Amazon US...*\n⏳ *Espera unos segundos...*",
             parse_mode='Markdown'
         )
 
@@ -239,74 +227,28 @@ async def generar_cookie_handler(update: Update, context: ContextTypes.DEFAULT_T
         cookies_dict, success = generar_cookie_amazon(DEFAULT_LOCALE, DEFAULT_COUNTRY_CODE)
 
         if success and cookies_dict:
-            # Formatear las cookies como texto
-            cookies_text = format_cookies_text(cookies_dict)
+            # Formatear solo las cookies
+            cookies_text = format_cookies_amz(cookies_dict)
             
-            # Dividir el mensaje si es muy largo
-            if len(cookies_text) > 4000:
-                # Parte 1: Información general
-                parte1 = (
-                    "✅ **¡Cookies generadas exitosamente!**\n\n"
-                    f"🌎 *País:* Amazon US\n"
-                    f"🍪 *Total de cookies:* {len(cookies_dict)}\n"
-                    f"📊 *Estado:* Listas para copiar\n\n"
-                    "⬇️ *Enviando cookies...*"
-                )
-                await mensaje.edit_text(parte1, parse_mode='Markdown')
-                
-                # Parte 2: Cookies en formato JSON
-                cookies_json = json.dumps(cookies_dict, indent=2, ensure_ascii=False)
-                if len(cookies_json) > 4000:
-                    # Si aún es muy grande, enviar como archivo
-                    with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json', encoding='utf-8') as temp_file:
-                        json.dump(cookies_dict, temp_file, indent=2, ensure_ascii=False)
-                        temp_path = temp_file.name
-                    
-                    with open(temp_path, 'rb') as file:
-                        await update.message.reply_document(
-                            document=file,
-                            filename="amazon_us_cookies.json",
-                            caption="🍪 **Cookies de Amazon US** (formato JSON)"
-                        )
-                    os.unlink(temp_path)
-                else:
-                    await update.message.reply_text(
-                        f"🍪 **COOKIES EN FORMATO JSON:**\n\n```json\n{cookies_json}\n```",
-                        parse_mode='Markdown'
-                    )
-                
-                # Parte 3: Instrucciones de uso
-                instrucciones = (
-                    "📋 **INSTRUCCIONES DE USO:**\n\n"
-                    "1. **Copiar las cookies** del mensaje anterior\n"
-                    "2. **Usar en tu código** como diccionario Python\n"
-                    "3. **Ejemplo:** `requests.get(url, cookies=cookies)`\n\n"
-                    "✅ *Listas para usar en tus proyectos*"
-                )
-                await update.message.reply_text(instrucciones, parse_mode='Markdown')
-                
-            else:
-                # Mensaje completo en uno
-                await mensaje.edit_text(cookies_text, parse_mode='Markdown')
+            # Mensaje con las cookies listas para copiar
+            cookie_message = (
+                "✅ **¡COOKIES AMAZON US GENERADAS!** ✅\n\n"
+                "🔹 **Cookies listas para usar:**\n\n"
+                f"`{cookies_text}`\n\n"
+                "📋 *Copia el texto de arriba*"
+            )
+            
+            await mensaje.edit_text(cookie_message, parse_mode='Markdown')
             
         else:
             await mensaje.edit_text(
-                "❌ **Error al generar las cookies**\n\n"
-                "⚠️ *Posibles causas:*\n"
-                "• Problemas de conexión con Amazon\n"
-                "• Cambios en la estructura del sitio\n"
-                "• Limitaciones temporales\n\n"
-                "🔄 *Por favor, intenta nuevamente en unos minutos.*",
+                "❌ **Error al generar las cookies**\n🔄 Intenta más tarde.",
                 parse_mode='Markdown'
             )
 
     except Exception as e:
-        error_msg = (
-            "❌ **Error inesperado**\n\n"
-            "🔧 *El problema ha sido reportado*\n"
-            "🔄 *Por favor, intenta más tarde.*"
-        )
-        logger.error(f"❌ Error en generar_cookie_handler: {e}")
+        error_msg = "❌ **Error inesperado**\n🔧 Intenta más tarde."
+        logger.error(f"Error: {e}")
         
         if mensaje:
             await mensaje.edit_text(error_msg, parse_mode='Markdown')
