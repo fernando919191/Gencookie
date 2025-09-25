@@ -2,46 +2,134 @@ import asyncio
 import logging
 import os
 import time
+import json
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
-from config import BOT_TOKEN, MENSAJES, DEBUG, save_user_credentials, get_user_credentials
-from comandos.gencookie import generar_cookie_handler
 
 # Configurar logging para DisCloud
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO if not DEBUG else logging.DEBUG
+    level=logging.INFO
 )
 
 logger = logging.getLogger(__name__)
 
+# Configuración
+BOT_TOKEN = os.getenv("BOT_TOKEN", "TU_TOKEN_AQUI")
+CREDENTIALS_FILE = "user_credentials.json"
+
+def load_user_credentials():
+    """Carga las credenciales de usuarios desde archivo"""
+    try:
+        if os.path.exists(CREDENTIALS_FILE):
+            with open(CREDENTIALS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return {}
+    except Exception as e:
+        logger.error(f"Error cargando credenciales: {e}")
+        return {}
+
+def save_user_credentials(user_id, email, password):
+    """Guarda las credenciales de un usuario"""
+    try:
+        credentials = load_user_credentials()
+        credentials[str(user_id)] = {
+            'email': email,
+            'password': password,
+            'timestamp': time.time()
+        }
+        with open(CREDENTIALS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(credentials, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        logger.error(f"Error guardando credenciales: {e}")
+        return False
+
+def get_user_credentials(user_id):
+    """Obtiene las credenciales de un usuario"""
+    credentials = load_user_credentials()
+    return credentials.get(str(user_id))
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start"""
-    await update.message.reply_text(
-        MENSAJES["inicio"],
-        parse_mode='Markdown'
-    )
+    welcome_text = """
+🤖 **Bot de Cookies Amazon - VikingCookies** 🍪
+
+🔐 *Autenticación personalizada por usuario*
+
+**Comandos disponibles:**
+/acc email@ejemplo.com contraseña - Configurar tu cuenta Amazon
+/gencookie - Generar cookies con flujo completo
+/micuenta - Ver tu cuenta configurada
+/help - Mostrar ayuda
+/status - Estado del bot
+
+**Ejemplo:**
+`/acc usuario@gmail.com micontraseña123`
+    """
+    await update.message.reply_text(welcome_text, parse_mode='Markdown')
 
 async def acc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /acc para configurar credenciales"""
     try:
         user_id = update.message.from_user.id
-        args = context.args
+        user_name = update.message.from_user.first_name
+        message_text = update.message.text
         
-        if len(args) < 2:
+        logger.info(f"Usuario {user_id} ({user_name}) ejecutó /acc")
+        
+        # Verificar si el mensaje tiene suficiente longitud
+        if len(message_text.strip()) < 10:  # "/acc x@y.z p"
             await update.message.reply_text(
-                MENSAJES["error_formato"],
+                "❌ **Formato incorrecto**\n\n"
+                "**Uso correcto:**\n"
+                "`/acc email@ejemplo.com contraseña`\n\n"
+                "**Ejemplos:**\n"
+                "`/acc usuario@gmail.com contraseña123`\n"
+                "`/acc usuario@hotmail.com mi.contraseña`\n"
+                "`/acc usuario@yahoo.com contraseña con espacios`",
                 parse_mode='Markdown'
             )
             return
         
-        email = args[0]
-        password = " ".join(args[1:])  # La contraseña puede tener espacios
+        # Dividir el mensaje en partes
+        parts = message_text.split()
         
-        # Validar formato de email básico
+        # El formato debe ser: /acc email contraseña
+        if len(parts) < 3:
+            await update.message.reply_text(
+                "❌ **Faltan argumentos**\n\n"
+                "Debes incluir email y contraseña.\n\n"
+                "**Ejemplo:**\n"
+                "`/acc tuemail@gmail.com tucontraseña`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Obtener email (segunda palabra)
+        email = parts[1].strip()
+        
+        # Obtener contraseña (todo lo demás)
+        password = ' '.join(parts[2:]).strip()
+        
+        # Validaciones básicas
+        if not email or not password:
+            await update.message.reply_text(
+                "❌ **Email o contraseña vacíos**",
+                parse_mode='Markdown'
+            )
+            return
+        
         if '@' not in email or '.' not in email:
             await update.message.reply_text(
                 "❌ **Email inválido**\n\nPor favor ingresa un email válido",
+                parse_mode='Markdown'
+            )
+            return
+        
+        if len(password) < 4:
+            await update.message.reply_text(
+                "❌ **Contraseña muy corta**\n\nLa contraseña debe tener al menos 4 caracteres",
                 parse_mode='Markdown'
             )
             return
@@ -50,112 +138,56 @@ async def acc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         success = save_user_credentials(user_id, email, password)
         
         if success:
-            # Mostrar confirmación (ocultando contraseña)
-            password_display = password[0] + '*' * (len(password) - 2) + password[-1] if len(password) > 2 else '***'
-            await update.message.reply_text(
-                f"✅ **Cuenta configurada exitosamente!**\n\n"
-                f"📧 *Email:* {email}\n"
-                f"🔑 *Contraseña:* {password_display}\n\n"
-                f"Ahora usa /gencookie para generar tus cookies",
-                parse_mode='Markdown'
+            # Mostrar contraseña oculta
+            if len(password) > 3:
+                password_display = password[0] + '•' * (len(password) - 2) + password[-1]
+            else:
+                password_display = '•' * len(password)
+            
+            confirmation_text = (
+                f"✅ **¡Cuenta configurada exitosamente, {user_name}!** ✅\n\n"
+                f"📧 **Email:** `{email}`\n"
+                f"🔑 **Contraseña:** `{password_display}`\n"
+                f"🆔 **Tu ID:** `{user_id}`\n\n"
+                f"**Próximo paso:** Usa `/gencookie` para generar tus cookies de Amazon"
             )
+            
+            await update.message.reply_text(confirmation_text, parse_mode='Markdown')
+            logger.info(f"Credenciales guardadas para usuario {user_id}")
+            
         else:
             await update.message.reply_text(
-                "❌ **Error al guardar credenciales**\n\nIntenta nuevamente",
+                "❌ **Error al guardar credenciales**\n\nPor favor, intenta nuevamente",
                 parse_mode='Markdown'
             )
+            logger.error(f"Error guardando credenciales para usuario {user_id}")
             
     except Exception as e:
         logger.error(f"Error en acc_command: {e}")
-        await update.message.reply_text(
-            "❌ **Error al procesar comando**\n\nIntenta nuevamente",
-            parse_mode='Markdown'
+        error_text = (
+            "❌ **Error al procesar el comando**\n\n"
+            "**Por favor, usa este formato:**\n"
+            "`/acc email@ejemplo.com contraseña`\n\n"
+            "**Ejemplo concreto:**\n"
+            "`/acc miemail@gmail.com MiContraseña.123`\n\n"
+            "Si el problema persiste, contacta al administrador."
         )
+        await update.message.reply_text(error_text, parse_mode='Markdown')
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /help"""
     help_text = """
-🤖 *Comandos disponibles:*
+🆘 **AYUDA - VikingCookies Bot** 🍪
 
-/acc correo@ejemplo.com contraseña - Configurar tu cuenta Amazon
-/gencookie - Generar cookies con tu cuenta
-/help - Muestra esta ayuda
-/start - Inicia el bot
-/status - Estado del bot
-/micuenta - Ver tu cuenta configurada
-    """
-    await update.message.reply_text(help_text, parse_mode='Markdown')
+**📋 COMANDOS DISPONIBLES:**
 
-async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /status"""
-    status_text = """
-✅ *Bot funcionando correctamente*
+`/start` - Mensaje de bienvenida
+`/acc email contraseña` - Configurar cuenta Amazon
+`/gencookie` - Generar cookies (flujo completo)
+`/micuenta` - Ver tu cuenta configurada
+`/status` - Estado del bot
+`/help` - Esta ayuda
 
-🌎 *Amazon Cookie Generator*
-🔐 *Autenticación:* Por usuario
-📊 *Estado:* Activo
-    """
-    await update.message.reply_text(status_text, parse_mode='Markdown')
+**🔐 CONFIGURACIÓN INICIAL:**
 
-async def micuenta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja el comando /micuenta"""
-    try:
-        user_id = update.message.from_user.id
-        credentials = get_user_credentials(user_id)
-        
-        if credentials:
-            email = credentials['email']
-            password_display = credentials['password'][0] + '*' * (len(credentials['password']) - 2) + credentials['password'][-1] if len(credentials['password']) > 2 else '***'
-            
-            await update.message.reply_text(
-                f"📋 **Tu cuenta configurada:**\n\n"
-                f"👤 *Usuario:* {update.message.from_user.first_name}\n"
-                f"📧 *Email:* {email}\n"
-                f"🔑 *Contraseña:* {password_display}\n\n"
-                f"Última actualización: <code>{time.ctime(credentials['timestamp'])}</code>",
-                parse_mode='HTML'
-            )
-        else:
-            await update.message.reply_text(
-                MENSAJES["credenciales_faltantes"],
-                parse_mode='Markdown'
-            )
-            
-    except Exception as e:
-        logger.error(f"Error en micuenta_command: {e}")
-        await update.message.reply_text(
-            "❌ **Error al obtener información de la cuenta**",
-            parse_mode='Markdown'
-        )
-
-def main():
-    """Función principal para iniciar el bot en DisCloud"""
-    try:
-        # Verificar que el token esté configurado
-        if BOT_TOKEN == "TU_TOKEN_AQUI":
-            logger.error("❌ ERROR: Configura BOT_TOKEN en las variables de entorno de DisCloud")
-            print("❌ ERROR: Configura BOT_TOKEN en las variables de entorno de DisCloud")
-            return
-        
-        # Crear la aplicación
-        application = Application.builder().token(BOT_TOKEN).build()
-
-        # Añadir handlers
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("acc", acc_command))
-        application.add_handler(CommandHandler("gencookie", generar_cookie_handler))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("status", status_command))
-        application.add_handler(CommandHandler("micuenta", micuenta_command))
-
-        # Iniciar el bot
-        logger.info("🤖 Bot iniciado en DisCloud...")
-        print("🚀 Amazon Cookie Bot (con login por usuario) está funcionando!")
-        application.run_polling()
-
-    except Exception as e:
-        logger.error(f"❌ Error al iniciar el bot: {e}")
-        print(f"❌ Error al iniciar el bot: {e}")
-
-if __name__ == "__main__":
-    main()
+1. **Configura tu cuenta:**
