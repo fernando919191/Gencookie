@@ -1,6 +1,5 @@
 beautifulsoup4==4.12.3
-bs4==0.0.2
-soupsieve==2.6
 tls-client==1.0.1
-typing_extensions==4.12.2
 python-telegram-bot==20.7
+requests==2.31.0
+soupsieve==2.6
