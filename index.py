@@ -52,21 +52,18 @@ def get_user_credentials(user_id):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /start"""
-    welcome_text = """
-🤖 **Bot de Cookies Amazon - VikingCookies** 🍪
-
-🔐 *Autenticación personalizada por usuario*
-
-**Comandos disponibles:**
-/acc email@ejemplo.com contraseña - Configurar tu cuenta Amazon
-/gencookie - Generar cookies con flujo completo
-/micuenta - Ver tu cuenta configurada
-/help - Mostrar ayuda
-/status - Estado del bot
-
-**Ejemplo:**
-`/acc usuario@gmail.com micontraseña123`
-    """
+    welcome_text = (
+        "🤖 **Bot de Cookies Amazon - VikingCookies** 🍪\n\n"
+        "🔐 *Autenticación personalizada por usuario*\n\n"
+        "**Comandos disponibles:**\n"
+        "/acc email@ejemplo.com contraseña - Configurar tu cuenta Amazon\n"
+        "/gencookie - Generar cookies con flujo completo\n"
+        "/micuenta - Ver tu cuenta configurada\n"
+        "/help - Mostrar ayuda\n"
+        "/status - Estado del bot\n\n"
+        "**Ejemplo:**\n"
+        "`/acc usuario@gmail.com micontraseña123`"
+    )
     await update.message.reply_text(welcome_text, parse_mode='Markdown')
 
 async def acc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -79,15 +76,14 @@ async def acc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.info(f"Usuario {user_id} ({user_name}) ejecutó /acc")
         
         # Verificar si el mensaje tiene suficiente longitud
-        if len(message_text.strip()) < 10:  # "/acc x@y.z p"
+        if len(message_text.strip()) < 10:
             await update.message.reply_text(
                 "❌ **Formato incorrecto**\n\n"
                 "**Uso correcto:**\n"
                 "`/acc email@ejemplo.com contraseña`\n\n"
                 "**Ejemplos:**\n"
                 "`/acc usuario@gmail.com contraseña123`\n"
-                "`/acc usuario@hotmail.com mi.contraseña`\n"
-                "`/acc usuario@yahoo.com contraseña con espacios`",
+                "`/acc usuario@hotmail.com mi.contraseña`",
                 parse_mode='Markdown'
             )
             return
@@ -176,18 +172,222 @@ async def acc_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el comando /help"""
-    help_text = """
-🆘 **AYUDA - VikingCookies Bot** 🍪
+    help_text = (
+        "🆘 **AYUDA - VikingCookies Bot** 🍪\n\n"
+        "**📋 COMANDOS DISPONIBLES:**\n\n"
+        "`/start` - Mensaje de bienvenida\n"
+        "`/acc email contraseña` - Configurar cuenta Amazon\n"
+        "`/gencookie` - Generar cookies (flujo completo)\n"
+        "`/micuenta` - Ver tu cuenta configurada\n"
+        "`/status` - Estado del bot\n"
+        "`/help` - Esta ayuda\n\n"
+        "**🔐 CONFIGURACIÓN INICIAL:**\n\n"
+        "1. **Configura tu cuenta:**\n"
+        "   ```\n"
+        "   /acc tuemail@gmail.com tucontraseña\n"
+        "   ```\n\n"
+        "2. **Genera cookies:**\n"
+        "   ```\n"
+        "   /gencookie\n"
+        "   ```\n\n"
+        "**⚡ FLUJO COMPLETO:**\n"
+        "El bot realizará automáticamente:\n"
+        "- ✅ Login en tu cuenta Amazon\n"
+        "- ✅ Agregar dirección EE.UU.\n"
+        "- ✅ Configurar One-Click\n"
+        "- ✅ Generar cookies válidas\n\n"
+        "**🛠️ SOPORTE:**\n"
+        "Si tienes problemas, verifica:\n"
+        "- Tu cuenta Amazon está activa\n"
+        "- Las credenciales son correctas\n"
+        "- No hay espacios extras en el comando"
+    )
+    await update.message.reply_text(help_text, parse_mode='Markdown')
 
-**📋 COMANDOS DISPONIBLES:**
+async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja el comando /status"""
+    try:
+        # Contar usuarios registrados
+        credentials = load_user_credentials()
+        user_count = len(credentials)
+        
+        status_text = (
+            f"✅ **BOT FUNCIONANDO CORRECTAMENTE** ✅\n\n"
+            f"**📊 ESTADÍSTICAS:**\n"
+            f"👥 Usuarios registrados: `{user_count}`\n"
+            f"🆔 Tu ID: `{update.message.from_user.id}`\n"
+            f"📛 Tu nombre: `{update.message.from_user.first_name}`\n\n"
+            f"**🌎 SERVICIO:**\n"
+            f"🔧 Estado: `🟢 ACTIVO`\n"
+            f"⚡ Versión: `VikingCookies 2.0`\n"
+            f"🕒 Última actualización: `{time.ctime()}`\n\n"
+            f"**💡 INFORMACIÓN:**\n"
+            f"Este bot genera cookies de Amazon mediante\n"
+            f"un flujo completo de autenticación."
+        )
+        await update.message.reply_text(status_text, parse_mode='Markdown')
+        
+    except Exception as e:
+        logger.error(f"Error en status_command: {e}")
+        await update.message.reply_text("✅ **Bot activo y funcionando**", parse_mode='Markdown')
 
-`/start` - Mensaje de bienvenida
-`/acc email contraseña` - Configurar cuenta Amazon
-`/gencookie` - Generar cookies (flujo completo)
-`/micuenta` - Ver tu cuenta configurada
-`/status` - Estado del bot
-`/help` - Esta ayuda
+async def micuenta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja el comando /micuenta"""
+    try:
+        user_id = update.message.from_user.id
+        user_name = update.message.from_user.first_name
+        credentials = get_user_credentials(user_id)
+        
+        if credentials:
+            email = credentials['email']
+            timestamp = credentials['timestamp']
+            
+            # Formatear contraseña oculta
+            password = credentials['password']
+            if len(password) > 3:
+                password_display = password[0] + '•' * (len(password) - 2) + password[-1]
+            else:
+                password_display = '•' * len(password)
+            
+            account_info = (
+                f"📋 **INFORMACIÓN DE TU CUENTA** 📋\n\n"
+                f"👤 **Usuario:** `{user_name}`\n"
+                f"🆔 **ID:** `{user_id}`\n"
+                f"📧 **Email Amazon:** `{email}`\n"
+                f"🔑 **Contraseña:** `{password_display}`\n"
+                f"📅 **Configurada el:** `{time.ctime(timestamp)}`\n\n"
+                f"**Acciones disponibles:**\n"
+                f"• Usa `/gencookie` para generar cookies\n"
+                f"• Usa `/acc nuevoemail nuevacontraseña` para cambiar\n"
+                f"• Usa `/status` para ver el estado del bot"
+            )
+            
+            await update.message.reply_text(account_info, parse_mode='Markdown')
+            
+        else:
+            await update.message.reply_text(
+                "❌ **No tienes cuenta configurada**\n\n"
+                "Usa el comando:\n"
+                "`/acc email@ejemplo.com contraseña`\n\n"
+                "**Ejemplo:**\n"
+                "`/acc usuario@gmail.com micontraseña123`",
+                parse_mode='Markdown'
+            )
+            
+    except Exception as e:
+        logger.error(f"Error en micuenta_command: {e}")
+        await update.message.reply_text(
+            "❌ **Error al obtener información de la cuenta**",
+            parse_mode='Markdown'
+        )
 
-**🔐 CONFIGURACIÓN INICIAL:**
+async def generar_cookie_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja el comando /gencookie"""
+    try:
+        from comandos.gencookie import generar_cookie_completa, format_cookies_amz
+        
+        user_id = update.message.from_user.id
+        user_name = update.message.from_user.first_name
+        
+        # Verificar si el usuario tiene credenciales configuradas
+        credentials = get_user_credentials(user_id)
+        if not credentials:
+            await update.message.reply_text(
+                "❌ **Primero configura tu cuenta Amazon**\n\n"
+                "Usa el comando:\n"
+                "`/acc email@ejemplo.com contraseña`\n\n"
+                "**Ejemplo:**\n"
+                "`/acc usuario@gmail.com micontraseña123`",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Enviar mensaje de "generando..."
+        mensaje = await update.message.reply_text(
+            f"🔐 **INICIANDO FLUJO COMPLETO** 🔐\n\n"
+            f"👤 **Usuario:** {user_name}\n"
+            f"📧 **Cuenta:** {credentials['email']}\n\n"
+            "🔄 **Procesando... Esto puede tomar 20-30 segundos**\n\n"
+            "⏳ Por favor, espera...",
+            parse_mode='Markdown'
+        )
 
-1. **Configura tu cuenta:**
+        # Generar las cookies con flujo completo
+        cookies_dict, success = generar_cookie_completa(user_id, "com", "US")
+
+        if success and cookies_dict:
+            # Formatear cookies
+            cookies_text = format_cookies_amz(cookies_dict)
+            
+            # Mensaje de éxito
+            success_message = (
+                f"✅ **¡COOKIES GENERADAS EXITOSAMENTE!** ✅\n\n"
+                f"👤 **Usuario:** {user_name}\n"
+                f"📧 **Cuenta:** {credentials['email']}\n"
+                f"🍪 **Total cookies:** {len(cookies_dict)}\n"
+                f"🇺🇸 **Dirección EE.UU.:** ✅ Agregada\n"
+                f"⚡ **One-Click:** ✅ Configurado\n\n"
+                "🔹 **TUS COOKIES LISTAS:**\n\n"
+                f"`{cookies_text}`\n\n"
+                "📋 **Copia el texto de arriba**\n"
+                "💳 **Listas para usar en verificaciones**"
+            )
+            
+            await mensaje.edit_text(success_message, parse_mode='Markdown')
+            
+        else:
+            await mensaje.edit_text(
+                "❌ **Error al generar las cookies**\n\n"
+                "⚠️ **Posibles causas:**\n"
+                "• Credenciales incorrectas\n"
+                "• Problemas de conexión con Amazon\n"
+                "• CAPTCHA requerido\n"
+                "• Cuenta temporalmente bloqueada\n\n"
+                "🔧 **Solución:**\n"
+                "1. Verifica tus credenciales con `/micuenta`\n"
+                "2. Intenta nuevamente en unos minutos\n"
+                "3. Si persiste, contacta al administrador",
+                parse_mode='Markdown'
+            )
+
+    except Exception as e:
+        logger.error(f"Error en generar_cookie_handler: {e}")
+        error_msg = (
+            "❌ **Error inesperado durante la generación**\n\n"
+            "El bot encontró un problema inesperado.\n"
+            "Por favor, intenta nuevamente en unos minutos."
+        )
+        await update.message.reply_text(error_msg, parse_mode='Markdown')
+
+def main():
+    """Función principal para iniciar el bot en DisCloud"""
+    try:
+        # Verificar que el token esté configurado
+        if BOT_TOKEN == "TU_TOKEN_AQUI":
+            logger.error("❌ ERROR: Configura BOT_TOKEN en las variables de entorno de DisCloud")
+            print("❌ ERROR: Configura BOT_TOKEN en las variables de entorno de DisCloud")
+            return
+        
+        # Crear la aplicación
+        application = Application.builder().token(BOT_TOKEN).build()
+
+        # Añadir handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("acc", acc_command))
+        application.add_handler(CommandHandler("gencookie", generar_cookie_handler))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("status", status_command))
+        application.add_handler(CommandHandler("micuenta", micuenta_command))
+
+        # Iniciar el bot
+        logger.info("🤖 Bot VikingCookies iniciado en DisCloud...")
+        print("🚀 VikingCookies Bot está funcionando!")
+        print("📊 Listo para recibir comandos...")
+        application.run_polling()
+
+    except Exception as e:
+        logger.error(f"❌ Error al iniciar el bot: {e}")
+        print(f"❌ Error al iniciar el bot: {e}")
+
+if __name__ == "__main__":
+    main()
