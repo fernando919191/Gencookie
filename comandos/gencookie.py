@@ -17,7 +17,6 @@ class CookieGeneratorConfig:
     def __init__(self, locale='com', country_code='US'):
         self.locale = locale
         self.client_identifier = "chrome_112"
-        self.zip_code = 10115
         self.country_code = country_code
         self.update_urls()
 
@@ -48,14 +47,13 @@ def extract_anti_csrf_token(html_content):
         if token_element:
             data_modal = token_element.get('data-a-modal')
             if data_modal:
-                # Limpiar y parsear el JSON
-                cleaned_data = data_modal.replace('&quot;', '"').replace('\\"', '"')
+                cleaned_data = data_modal.replace('&quot;', '"')
                 data_modal_json = json.loads(cleaned_data)
                 anti_csrf_token = data_modal_json.get('ajaxHeaders', {}).get('anti-csrftoken-a2z', '')
                 if anti_csrf_token:
                     return anti_csrf_token
         
-        # Fallback: buscar en scripts
+        # Buscar en scripts como fallback
         scripts = soup.find_all('script')
         for script in scripts:
             if script.string:
@@ -70,7 +68,6 @@ def extract_anti_csrf_token(html_content):
 
 def extract_csrf_token(response_text):
     try:
-        # Múltiples patrones para encontrar el CSRF token
         patterns = [
             r'CSRF_TOKEN\s*:\s*["\']([^"\']+)',
             r'csrfToken\s*:\s*["\']([^"\']+)',
@@ -123,8 +120,7 @@ def generar_cookie_amazon(locale="com", country_code="US"):
         anti_csrf_token = extract_anti_csrf_token(response.text)
         
         if not anti_csrf_token:
-            logger.error("❌ No se pudo extraer anti-CSRF token")
-            # Intentar continuar sin el token
+            logger.warning("⚠️ No se pudo extraer anti-CSRF token, usando fallback")
             anti_csrf_token = "fallback_token"
         
         # Paso 3: Obtener rendered address selections
@@ -174,6 +170,7 @@ def generar_cookie_amazon(locale="com", country_code="US"):
             session, "POST", headers=headers, params={'actionSource': 'glow'}, json_data=json_data
         )
         
+        # Verificar respuesta
         if response and response.status_code == 200:
             try:
                 response_data = response.json()
@@ -187,7 +184,6 @@ def generar_cookie_amazon(locale="com", country_code="US"):
         # Paso 6: Guardar cookies
         logger.info("💾 Guardando cookies...")
         
-        # Verificar que hay cookies
         if not session.cookies:
             logger.error("❌ No se generaron cookies")
             return None, False
@@ -198,8 +194,6 @@ def generar_cookie_amazon(locale="com", country_code="US"):
             temp_path = temp_file.name
             
         logger.info(f"✅ Cookies guardadas en: {temp_path}")
-        logger.info(f"🍪 Cookies generadas: {len(session.cookies)}")
-        
         return temp_path, True
         
     except Exception as e:
@@ -233,32 +227,20 @@ async def generar_cookie_handler(update: Update, context: ContextTypes.DEFAULT_T
                 await update.message.reply_document(
                     document=file,
                     filename="amazon_us_cookies.pkl",
-                    caption="🍪 **Cookie de Amazon US generada**\n\n"
-                           "✅ *Lista para usar en tus proyectos*"
+                    caption="🍪 **Cookie de Amazon US generada**\n\n✅ *Lista para usar en tus proyectos*"
                 )
             
             # Limpiar archivo temporal
             os.unlink(cookie_path)
             
-            logger.info("✅ Cookie enviada exitosamente al usuario")
-            
         else:
             await mensaje.edit_text(
                 "❌ **Error al generar la cookie**\n\n"
-                "⚠️ *Posibles causas:*\n"
-                "• Problemas de conexión con Amazon\n"
-                "• Cambios en la estructura de Amazon\n"
-                "• Limitaciones temporales\n\n"
-                "🔄 *Por favor, intenta nuevamente en unos minutos.*"
+                "⚠️ *Por favor, intenta nuevamente en unos minutos.*"
             )
-            logger.error("❌ No se pudo generar la cookie")
 
     except Exception as e:
-        error_msg = (
-            "❌ **Error inesperado**\n\n"
-            "🔧 *El desarrollador ha sido notificado*\n"
-            "🔄 *Por favor, intenta más tarde.*"
-        )
+        error_msg = "❌ **Error inesperado**\n\n🔄 *Por favor, intenta más tarde.*"
         logger.error(f"❌ Error en generar_cookie_handler: {e}")
         
         if mensaje:
